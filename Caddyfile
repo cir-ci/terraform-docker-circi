@@ -1,0 +1,66 @@
+# Two hosts, two certificates (see https://circi.dev/self-hosting/site-domains/).
+#
+#   DASHBOARD_HOST  e.g. ci.acme.io          the dashboard and API (HTTP-01 is enough)
+#   SITES_HOST      e.g. acme-sites.com      hosted sites, a SEPARATE domain used for nothing else
+#
+# Caddy keeps the Host header when proxying, which is how CirCI tells a site from the dashboard.
+#
+# Custom domains (a project site's own domain, e.g. storybook.acme.com, set in Sites in the dashboard)
+# get their certificates on demand, the first time someone opens them: Caddy asks CirCI
+# (`/internal/tls-ask`) and only a domain a project has verified gets a certificate.
+
+{
+	on_demand_tls {
+		ask http://circi:3000/internal/tls-ask
+	}
+}
+
+# The ask endpoint is for Caddy only, over the internal network: never reachable from outside.
+(no_internal) {
+	@internal path /internal/*
+	respond @internal "Not found" 404
+}
+
+{$DASHBOARD_HOST} {
+	import no_internal
+	reverse_proxy circi:3000
+}
+
+# One wildcard certificate covers every site address (`<hash>-<slug>.{$SITES_HOST}`).
+# Wildcards need the DNS-01 challenge: Route53 credentials come from the AWS credential chain
+# (an IAM role on EC2 is best; otherwise AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
+*.{$SITES_HOST} {
+	import no_internal
+	tls {
+		dns route53
+	}
+	reverse_proxy circi:3000 {
+		# Uploaded sites can set many cookies; let their requests through so CirCI can clear them.
+		transport http {
+			response_header_timeout 60s
+		}
+	}
+}
+
+# The bare sites domain serves nothing.
+{$SITES_HOST} {
+	tls {
+		dns route53
+	}
+	respond "Not found" 404
+}
+
+# Every other name that arrives over TLS is a custom domain candidate: the certificate is issued
+# only if CirCI says the domain is verified (the `ask` above), and the request is then served by
+# CirCI exactly like a site address (an unknown or unverified host gets no certificate at all).
+https:// {
+	import no_internal
+	tls {
+		on_demand
+	}
+	reverse_proxy circi:3000 {
+		transport http {
+			response_header_timeout 60s
+		}
+	}
+}
