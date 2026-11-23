@@ -408,8 +408,10 @@ resource "docker_container" "caddy" {
     ipv4_address = local.caddy_address # the one proxy the app trusts (TRUSTED_PROXIES)
   }
   upload {
-    file    = "/etc/caddy/Caddyfile"
-    content = file("${path.module}/Caddyfile")
+    file = "/etc/caddy/Caddyfile"
+    # The mirror on the Terraform Registry holds the file next to the module; in cir-ci/repo it's deploy/Caddyfile, the one
+    # file the Docker Compose overlay mounts too (no symlink: a Windows checkout would turn one into a text file).
+    content = fileexists("${path.module}/Caddyfile") ? file("${path.module}/Caddyfile") : file("${path.module}/../Caddyfile")
   }
   volumes {
     volume_name    = docker_volume.caddy_data[0].name

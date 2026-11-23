@@ -81,7 +81,7 @@ variable "network_subnet" {
 
 variable "caddy" {
   description = <<-EOT
-    TLS for the dashboard and hosted sites with Caddy (deploy/Caddyfile; read https://circi.dev/self-hosting/site-domains/ first). Route53 credentials come from the host's instance role, or caddy_aws_credentials.
+    TLS for the dashboard and hosted sites with Caddy, configured by the module's Caddyfile (read https://circi.dev/self-hosting/site-domains/ first). Route53 credentials come from the host's instance role, or caddy_aws_credentials.
       dashboard_host  string  required, e.g. ci.acme.io
       sites_host      string  required, a domain used for nothing else
       aws_region      string  Route53's region (default us-east-1)
